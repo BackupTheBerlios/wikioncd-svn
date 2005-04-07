@@ -238,10 +238,9 @@ sub WikiToHTML {
 	
 	$nextline = "\n";
 	
-	$text =~ s|\r\n\r\n|<p>$nextline|go;			# Double newline = paragraph
-	$text =~ s|\r\n|$nextline|go;						# Single newline
-	$text =~ s|\n\n|<p>$nextline|go;
-	$text =~ s|\n|$nextline|go;
+	$text =~ s|\r\n\r\n|\n<p>\n|go;			# Double newline = paragraph
+	$text =~ s|\r\n|\n|go;						# Single newline
+	$text =~ s|\n\n|\n<p>\n|go;
 
 	# Wiki tables	
 	
@@ -552,7 +551,7 @@ END_STARTTOC
 			$external_reference_counter++;
 			}
 		$text =~ s|\[(${protocol}\:\S+)\s+(.*?)\]|<A HREF=\"$1\" class="external">$2</A>|mg;
-		$text =~ s|([^\"])(${protocol}\:\S+)([${sep}]*)|$1<A HREF=\"$2\" class="external">$2</A>$3|mg;
+		$text =~ s|([^\"])(${protocol}\:\S+)([${sep}]*)\b|$1<A HREF=\"$2\" class="external">$2</A>$3|mg;
 		}
 
 	# unicode -> html character codes &#nnnn;
