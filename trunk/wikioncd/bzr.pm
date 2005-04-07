@@ -14,6 +14,13 @@ package Compress::Bzip2::RandomAccess;
 use Compress::Bzip2;
 
 our $default_blocksize = 600;
+our $debug = 1;
+
+sub debug {
+	our $debug;
+	
+	print STDERR @_ if $debug;
+}
 
 sub new_to_file {
 	my ($class, $file, $blocksize) = @_;
@@ -31,7 +38,7 @@ sub new_to_file {
 	$blocksize *= 1024;
 	
 	my $self = {
-		fh => $datafh,
+		fh => $fh,
 		blocksize => $blocksize,
 	};
 
@@ -43,6 +50,8 @@ sub file {
 
 	print { $self->{fh} } pack("N", $len);
 	print { $self->{fh} } "$filename\n";
+	
+	debug "wrote header for $len bytes file $filename.\n";
 }
 
 sub data {
@@ -96,7 +105,8 @@ sub flush {
 	
 	print { $self->{fh} } pack("N", $len | 0x80000000);
 	print { $self->{fh} } $compressed;
-	
+
+	debug "Wrote header for $len bytes block.\n";	
 }
 
 sub close_for_write {
@@ -125,7 +135,7 @@ sub new_from_file {
 	}
 
 	my $self = {
-		fh => $indexfh,
+		fh => $fh,
 		blocksize => $blocksize,
 	};
 
@@ -138,7 +148,7 @@ sub new_from_file {
 sub cache_offsets {
 	my $self = shift;
 
-	my $file_pos = 0; my $block_pos = 4; my $block = 0;
+	my $file_pos = 0; my $block_pos = 8; my $block = 0;
 
 	while (!eof($self->{fh})) { # Won't likely trigger, but...
 
@@ -153,6 +163,8 @@ sub cache_offsets {
 			$self->{block}[$block] = [ $block_pos, $len ];
 			$block_pos += 4 + $len;
 			$block ++;
+			debug "(C) found $len bytes block.\n";
+			
 		} else {
 			my $filename = readline $self->{fh};
 			$block_pos += 4 + length $filename;
@@ -160,6 +172,8 @@ sub cache_offsets {
 
 			$self->{files}{$filename} = [ $file_pos, $len ];
 			$file_pos += $len;
+
+			debug "(C) found $len bytes file $filename.\n";
 		}
 	}
 }	
@@ -167,12 +181,12 @@ sub cache_offsets {
 sub find_file_cached {
 	my ($self, $filename) = @_;
 
-	my ($fpos, $flen) = @{ $self->{files}{$file} };
+	my ($fpos, $flen) = @{ $self->{files}{$filename} };
 	
 	my $block = int($fpos / $self->{blocksize});
 	my $skip = $fpos % $self->{blocksize};
 	
-	my ($bpos, $blen) = @{ $self->{block}{$block} };
+	my ($bpos, $blen) = @{ $self->{block}[$block] };
 
 	seek $self->{fh}, $bpos, SEEK_SET;
 
@@ -182,31 +196,39 @@ sub find_file_cached {
 sub find_file_nocache {
 	my ($self, $wantfile) = @_;
 	
-	my $file_pos = 0; my $block_pos = 4; my $block = 0;
+	my $file_pos = 0; my $block_pos = 8; my $block = 0;
 	my ($want_pos, $want_len);
 	
 	while (!eof($self->{fh})) {
 
 		seek $self->{fh}, $block_pos, SEEK_SET;
-		read $self->{fh}, my $code, 4 or die $!;
+		read $self->{fh}, my $code, 4 or return undef;
 		my $len = unpack("N", $code);
 
 		if ($len & 0x80000000) {
-			if (defined $want_pos && ($block + 1) * $blocksize >= $want_pos) {
+			if (defined $want_pos && ($block + 1) * $self->{blocksize} >= $want_pos) {
+				debug "(U) And we're there!\n";
 				seek $self->{fh}, $block_pos, SEEK_SET; #Back it up a bit.
-				return ($want_len, $want_pos % self->{blocksize});
+				return ($want_len, $want_pos % $self->{blocksize});
 			}
 				
 			$len &= 0x7fffffff;
 			$block_pos += 4 + $len;
 			$block ++;
+
+			debug "(U) found $len bytes block.\n";
+			
 		} else {
 			my $filename = readline $self->{fh};
 			$block_pos += 4 + length $filename;
 			chomp($filename);
 
+			debug "(U) found $len bytes file $filename.\n";
+
 			if ($filename eq $wantfile) {
 				$want_pos = $file_pos;
+				$want_len = $len;
+				debug "(U) That's it!\n";
 			}
 			$file_pos += $len;
 		}
@@ -215,17 +237,30 @@ sub find_file_nocache {
 
 sub decompress_one_block {
 	my $self = shift;
-	
-	my $code;
-	read $self->{fh}, $code, 4;
-	my $len = unpack("N", $code);
-	
-	die "Doesn't look like a block" unless $len & 0x80000000;
-	$len &= 0x7fffffff;
+	my $len;
+
+	while (!$len) {	
+		my $code;
+		read $self->{fh}, $code, 4;
+		$len = unpack("N", $code);
+		if ($len & 0x80000000) {
+			$len &= 0x7fffffff;
+		} else {
+			readline $self->{fh};
+			$len = 0;
+		}
+	}
 
 	my $data;
 	read $self->{fh}, $data, $len or die $!;
-	return Compress::Bzip2::decompress($data);
+
+	$data = Compress::Bzip2::decompress($data);
+	
+	my $elen = length $data;
+	
+	debug "Read $len bytes block ($elen bytes).\n";
+	return $data;
+
 }
 
 sub read_file {
@@ -239,10 +274,14 @@ sub read_file {
 		($len, $skip) = $self->find_file_nocache($file);
 	}
 
+	return(undef), debug "Not found!\n" unless $len;
+
+	debug "Getting $len bytes data.\n";
+
 	my $data = $self->decompress_one_block();
 	substr ($data, 0, $skip) = undef;
 	
-	while (length $data < $len) {
+	while (length($data) < $len) {
 		$data .= $self->decompress_one_block();
 	}
 
