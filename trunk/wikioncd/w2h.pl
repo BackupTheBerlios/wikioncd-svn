@@ -175,7 +175,6 @@ sub WikiToHTML {
 			$counter =0;
 			foreach $p (@params)
 				{
-				print STDERR "parm: $p\n";
 				$counter = $counter+1;
 				if ($p =~ m/\=/s)
 					{
@@ -183,7 +182,6 @@ sub WikiToHTML {
 					}
 				else
 					{
-						print STDERR "parm $counter is ''$p''.\n";
 					$parname = $counter;
 					$parvalue = $p;
 					}
