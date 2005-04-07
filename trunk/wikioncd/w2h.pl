@@ -71,21 +71,18 @@ sub WikiToHTML {
 		push @nowiki, $1;
 		}
 
-	$text = RemoveHTMLcomments($text);	
+#	$text = RemoveHTMLcomments($text);	
 	# Dig into the articles and convert all [[links]] into HREFs, storing their titles in the process...
 
-	while ($text =~ /\[\[/) {
-		my $count = 0;
-		while ($text =~ /(\[\[|\]\])/gc) {
-			$count += { "[[" => 1, "]]" => -1 }->{$1};
-			last unless $count > 0;
-		}
-		substr(substr($text, 0, pos($text)), index($text, "[[")) =~
-			s/^\[\[(.*)\]\]$/ProcessLink($1)/e;
-	}
-
-#	$text =~ s|\[\[([^\]\n]{0,512}?)\]\](\w*)|ProcessLink($1,$2)|seg;
-
+# Whee. Not necessary! We can just do it once, after.
+#	while ($text =~ /\[\[/) {
+#		my $count = 0;
+#		while ($text =~ /(\[\[|\]\])/gc) {
+#			$count += { "[[" => 1, "]]" => -1 }->{$1};
+#			last unless $count > 0;
+#		}
+#		$text =~ s/\[\[(.*)\]\]\G/ProcessLink($1)/e;
+#	}
 
 	# Convert TeX math notation
 
@@ -108,7 +105,7 @@ sub WikiToHTML {
 	
 	$Wikiarray{pagename} = $title;
 	$templates_max = 100;
-	$templates_num=0;
+	$templates_num = 0;
 	while( $text =~ m#\{\{([^\{]*?)\}\}#mo)	
 		{
 		$variable = $1;
@@ -178,6 +175,7 @@ sub WikiToHTML {
 			$counter =0;
 			foreach $p (@params)
 				{
+				print STDERR "parm: $p\n";
 				$counter = $counter+1;
 				if ($p =~ m/\=/s)
 					{
@@ -185,6 +183,7 @@ sub WikiToHTML {
 					}
 				else
 					{
+						print STDERR "parm $counter is ''$p''.\n";
 					$parname = $counter;
 					$parvalue = $p;
 					}
@@ -237,8 +236,7 @@ sub WikiToHTML {
 			print STDERR "$text\n";
 		}
 
-		substr(substr($text, 0, pos($text)), index($text, "[[")) =~
-			s/^\[\[(.*)\]\]/ProcessLink($1)/e;
+		$text =~ s/\[\[(.*)\]\]\G/ProcessLink($1)/e;
 	}
 
 	## Newlines
@@ -632,9 +630,6 @@ sub ProcessLink
 	$linkappereance = $original_link;
 	
 
-	$linkappereance =~ s/\[/&#91;/;
-	$linkappereance =~ s/\]/&#93;/;
-
 	# Watch out for pipes (they change link appereance, and would also break regexps if left in the link)
 	if ($linkname =~ m/^\s*(.*?)\|(.*)/o)
 		{
@@ -848,9 +843,9 @@ sub ProcessLink
 			$linkappereance =~ s/^.*://;
 
 #		... or don't. That's rude.
-				if ($1 ne 't' && $1 ne 'c' && $1 ne 'wp') {
-					return ($linkappereance, $linkappereance);
-				}
+			if ($namespace ne 't' && $namespace ne 'c' && $namespace ne 'wp') {
+				return ($linkappereance, $linkappereance);
+			}
 #			return ("", "");
 			}
 		
@@ -955,7 +950,7 @@ sub GetMsgValue {
 	my $file = shift;
 	my $ns = shift || "t";
 	my $ret = get_wiki($file, $ns);
-	$ret = RemoveHTMLcomments($ret);
+#	$ret = RemoveHTMLcomments($ret);
 	return $ret;
 }
 
