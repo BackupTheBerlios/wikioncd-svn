@@ -150,6 +150,8 @@ sub cache_offsets {
 
 	my $file_pos = 0; my $block_pos = 8; my $block = 0;
 
+	seek $self->{fh}, 0, SEEK_SET; # Avoid possible EOF on first read
+
 	while (!eof($self->{fh})) { # Won't likely trigger, but...
 
 		seek $self->{fh}, $block_pos, SEEK_SET;
@@ -181,6 +183,8 @@ sub cache_offsets {
 sub find_file_cached {
 	my ($self, $filename) = @_;
 
+	debug "In FFC.\n";
+	
 	my ($fpos, $flen) = @{ $self->{files}{$filename} };
 	
 	my $block = int($fpos / $self->{blocksize});
@@ -196,9 +200,13 @@ sub find_file_cached {
 sub find_file_nocache {
 	my ($self, $wantfile) = @_;
 	
+	debug "In FFNC.\n";
+
 	my $file_pos = 0; my $block_pos = 8; my $block = 0;
 	my ($want_pos, $want_len);
-	
+
+	seek $self->{fh}, 0, SEEK_SET; # Avoid possible EOF on first read.
+
 	while (!eof($self->{fh})) {
 
 		seek $self->{fh}, $block_pos, SEEK_SET;
