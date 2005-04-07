@@ -77,7 +77,7 @@ sub read_file {
 	my $first = substr $prefix, 0, 1;
 
 	my $bzr = Compress::Bzip2::RandomAccess->new_from_file(
-			"out/$first/$prefix");
+			"out/$first/$prefix.bzr");
 
 	return $bzr->read_file($filename);
 }
