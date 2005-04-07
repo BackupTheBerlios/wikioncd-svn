@@ -145,7 +145,7 @@ sub write_data {
 
 	if (!defined $::bzr{$prefix}) {
 		$::bzr{$prefix} = Compress::Bzip2::RandomAccess->new_to_file(
-				"out/$onechar/$prefix", $::blocksize) or die $!; 
+				"out/$onechar/$prefix.bzr", $::blocksize) or die $!; 
 	}
 
 	$::bzr{$prefix}->write_file($key, $$text) 
@@ -256,7 +256,7 @@ mkdir("out");
 
 init_index($filename);
 
-print "Total FH: ", keys(%::redirect_fh) + 2 * keys(%::bzr), "\n";
+print "Total FH: ", keys(%::redirect_fh) + keys(%::bzr), "\n";
 
 print "Flushing...";
 close $::redirect_fh{$_} for keys %::redirect_fh;

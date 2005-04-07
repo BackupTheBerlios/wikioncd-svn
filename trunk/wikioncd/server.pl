@@ -176,7 +176,10 @@ sub read_file {
 
 	if (!defined $::bzr{$prefix}) {
 		$::bzr{$prefix} = Compress::Bzip2::RandomAccess->new_from_file(
-			"out/$first/$prefix") or return undef;
+			"out/$first/$prefix.bzr") or return undef;
+		if ($::cache) {
+			$::bzr{$prefix}->cache_offsets;
+		}
 	}
 	return $::bzr{$prefix}->read_file($filename);
 }
