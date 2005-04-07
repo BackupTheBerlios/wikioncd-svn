@@ -19,16 +19,12 @@ $include_media = 0;
 $include_toc = 3;
 
 %Wikiarray = (
-"Numberofarticles" => "450000",
-"Currentyear" => "2005",
-"Currentmonthname" => "March",
-"Currentday" => "9",
+"numberofarticles" => "450000",
+"currentyear" => "2005",
+"currentmonthname" => "March",
+"currentday" => "9",
 "stub" => "",
 "writer-stub" => "",
-"msg:stub" => "",
-"msg:writer-stub" => "",
-"template:stub" => "",
-"template:writer-stub" => ""
 );
 
 $MainPageName = "Main Page";
@@ -148,7 +144,7 @@ sub WikiToHTML {
 			}
 		else
 			{
-			$replace = $Wikiarray{$variable};
+			$replace = $Wikiarray{lc $variable};
 	
 			if ($replace eq "")
 				{

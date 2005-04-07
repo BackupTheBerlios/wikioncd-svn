@@ -11,7 +11,7 @@
 use IO::File;
 require 'bzr.pm';
 
-$::blocksize = 512;
+$::blocksize = 128;
 $::debug = 0;
 $::lang = "en";
 
@@ -134,8 +134,9 @@ sub init_index {
 sub write_data {
 	my ($key, $text) = @_;
 
-	rewrite_links($text);
-	
+	RemoveHTMLcomments($text);
+	rewrite_links($text);	
+
 	my $prefix = substr $key, 0, 2;
 	$prefix .= lc $prefix if length($prefix) < 2;
 
@@ -154,16 +155,48 @@ sub write_data {
 	$::bzr{$prefix}->write_file($key, $$text) 
 }
 
+sub RemoveHTMLcomments {
+	my $text = shift;
+	my ($comment_start, $comment_end);
+	
+	$comment_start = "<!--";
+	$comment_end = "-->";
+	
+	$$text =~ s/\Q$comment_start\E.*?\Q$comment_end\E/ /msgo;
+}
 
 sub rewrite_links {
 	
 	my $text = shift;
 
 	$$text =~ s/\[\[([^]]+)]/"[[" . rewrite_link($1) . "]"/ego;
-	$$text =~ s/(?<!{){{([^{][^}]+)}/ "{{" . title_to_key($1, "t") . "}" /ego;
-
+	$$text =~ s/(?<!{){{([^{][^}|\s]+)/"{{" . rewrite_template($1)/ego;
 }
 
+sub rewrite_template {
+	my $link = shift;
+	my $namespace = "t";
+
+	if ($link =~ /^:/) {
+		$link =~ s/^://;
+	}
+	
+	if ($link =~ /:/) {
+		($namespace, $link) = split ':', $link, 2;
+
+		if ($namespace ne $::lang) {
+			if ($::namespace_reverse{lc $namespace}) {
+				return $::namespaces{$::namespace_reverse{lc $namespace}} .
+					":$link";
+			} else {
+				return "$namespace:$link";
+			}
+		}
+	} else {
+		return $link;
+	}
+}
+	
 sub rewrite_link {
 	my $link = shift;
 	my $namespace = "";
