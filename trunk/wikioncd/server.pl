@@ -18,6 +18,8 @@ use URI::Escape;
 require 'bzr.pm';
 require 'w2h.pl';
 
+our $cache = 1;
+
 sub load_redirect {
 	my $prefix = shift;
 

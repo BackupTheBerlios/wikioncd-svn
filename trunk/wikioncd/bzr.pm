@@ -14,7 +14,7 @@ package Compress::Bzip2::RandomAccess;
 use Compress::Bzip2;
 
 our $default_blocksize = 600;
-our $debug = 1;
+our $debug = 0;
 
 sub debug {
 	our $debug;
