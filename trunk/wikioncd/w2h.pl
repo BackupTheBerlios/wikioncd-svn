@@ -18,11 +18,11 @@ $wiki_language = "en";
 $include_media = 0;
 $include_toc = 3;
 
-
 %Wikiarray = (
-"NUMBEROFARTICLES" => "450000",
-"CURRENTMONTHNAME" => "February",
-"CURRENTDAY" => "9",
+"Numberofarticles" => "450000",
+"Currentyear" => "2005",
+"Currentmonthname" => "March",
+"Currentday" => "9",
 "stub" => "",
 "writer-stub" => "",
 "msg:stub" => "",
@@ -53,7 +53,7 @@ $list_continue{" "} = "";
 $list_close{" "} = "</pre>";
 
 sub WikiToHTML {
-	my ( $title, $text, $do_toc, $do_html) = @_;
+	my ($title, $text, $namespace, $do_toc, $do_html) = @_;
 	my ($page, $title_spaces, $heading, $sep, $protocol);
 	my ($line, $n, $item, $html_lists, $diff, $opened, $gone_on, $splitted, $want_toc, @TOC);
 	my ($tex_start, $tex_end, $math);
@@ -62,6 +62,7 @@ sub WikiToHTML {
 	
 #	return $text if ($level > 5)
 
+	
 	# Remove <nowiki> segments, saving them
 	
 	@nowiki = ();
@@ -154,18 +155,21 @@ sub WikiToHTML {
 #				print LOGFILE "Wikiarray for $variable was empty \n";
 				## match msg:, Template;, etc.	
 				$msg = $variable;
-				if ($variable =~ m/\:(.*?)$/i)
+				if ($variable =~ m/(.*?)\:(.*?)$/i)
 					{
-					$msg = $1;
+					$ns = $1;
+					$msg = $2;
+					} else {
+						$ns = "t";
 					}
 #				print LOGFILE "Now looking at $msg \n";
-				$replace = &GetMsgValue($msg);
+				$replace = &GetMsgValue($msg, $ns);
 				
 				$templates_num = $templates_num+1;
 				$replace = "" if ($templates_num > $templates_max);
 				}
 			}	
-			
+		
 #		print LOGFILE "For message $original_var got text $replace \n";
 
 		## Parameter substitution is commented out due to problems with UTF8 languages (see bg)
@@ -222,16 +226,23 @@ sub WikiToHTML {
 		}
 
 	# Now redo links conversion for the links inserted by {{}} parameters
+
+	my $desperation = 0;
 	
-	while ($text =~ /\[\[/) {
+	while ($text =~ /\[\[.*\]\]/) {
 #		print STDERR $text, "\n";
 		my $count = 0;
 		while ($text =~ /(\[\[|\]\])/gc) {
 			$count += { "[[" => 1, "]]" => -1 }->{$1};
 			last unless $count > 0;
 		}
+		$desperation ++;
+		if ($desperation == 1000) {
+			print STDERR "$text\n";
+		}
+
 		substr(substr($text, 0, pos($text)), index($text, "[[")) =~
-			s/^\[\[(.*)\]\]$/ProcessLink($1)/e;
+			s/^\[\[(.*)\]\]/ProcessLink($1)/e;
 	}
 
 	## Newlines
@@ -623,7 +634,11 @@ sub ProcessLink
 
 	$linkname = $original_link;
 	$linkappereance = $original_link;
-		
+	
+
+	$linkappereance =~ s/\[/&#91;/;
+	$linkappereance =~ s/\]/&#93;/;
+
 	# Watch out for pipes (they change link appereance, and would also break regexps if left in the link)
 	if ($linkname =~ m/^\s*(.*?)\|(.*)/o)
 		{
@@ -837,7 +852,7 @@ sub ProcessLink
 			$linkappereance =~ s/^.*://;
 
 #		... or don't. That's rude.
-				if ($1 ne 't' && $1 eq 'c') {
+				if ($1 ne 't' && $1 ne 'c' && $1 ne 'wp') {
 					return ($linkappereance, $linkappereance);
 				}
 #			return ("", "");
@@ -904,10 +919,10 @@ sub RemoveHTMLcomments {
 	my ($text) = @_;
 	my ($comment_start, $comment_end);
 	
-	$comment_start = "\<\!\-\-";
-	$comment_end = "\-\-\>";
+	$comment_start = "<!--";
+	$comment_end = "-->";
 	
-	$text =~ s/${comment_start}.*?${comment_end}//gs;
+	$text =~ s/\Q$comment_start\E.*?\Q$comment_end\E//msgo;
 	
 	$text;
 }
@@ -942,7 +957,10 @@ sub GetFileName {
 
 sub GetMsgValue {
 	my $file = shift;
-	return get_wiki($file, "t");
+	my $ns = shift || "t";
+	my $ret = get_wiki($file, $ns);
+	$ret = RemoveHTMLcomments($ret);
+	return $ret;
 }
 
 

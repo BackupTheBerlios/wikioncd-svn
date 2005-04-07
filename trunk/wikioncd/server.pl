@@ -9,7 +9,6 @@
 # as published by the Free Software Foundation; either version 2
 # of the License, or (at your option) any later version.
 
-
 use Tree::Binary::Search;
 use POE::Component::Server::HTTP;
 use HTTP::Status;
@@ -130,22 +129,22 @@ EO500
 sub get_wiki {
 	my ($page, $namespace) = @_;
 
+	my $filename = title_to_web($page, $namespace);
 	
 	my $first = substr $filename, 0, 1;
 
-	$::redirect{$first} = load_redirect($first) unless $::redirect{$first};
+	$::redirect{$first} = load_redirect($first) unless defined $::redirect{$first};
 
 	my $count = 0;
 	
 	while ($::redirect{$first}{$filename}) {
 		$filename = $::redirect{$first}{$filename};
 		my $first = substr $filename, 0, 1;
-		$::redirect{$first} = load_redirect($first) unless $::redirect{$first};
+		$::redirect{$first} = load_redirect($first) unless defined $::redirect{$first};
 		$count ++;
 		last if $count > 3;
 	}
 
-	my $filename = title_to_web($page, $namespace);
 
 	my $file = read_file($filename);
 	return $file;
@@ -161,8 +160,10 @@ sub do_wiki {
 	if ($file) {
 		$response->code(RC_OK);
 		$response->header("Content-Type" => "text/html");
-		
-		$response->content(WikiToHTML($filename, $file, 1, 1));
+	
+		my $html = WikiToHTML($filename, $file, $namespace, 1, 1);
+
+		$response->content($html);
 	} else {
 		do_404($response, $namespace ? "$namespace:" : "" . $page);
 	}
@@ -183,7 +184,8 @@ sub read_file {
 			$::bzr{$prefix}->cache_offsets;
 		}
 	}
-	return $::bzr{$prefix}->read_file($filename);
+	my $ret = $::bzr{$prefix}->read_file($filename);
+	return $ret;
 }
 
 sub do_404 {

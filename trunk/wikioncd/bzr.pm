@@ -165,7 +165,7 @@ sub cache_offsets {
 			$self->{block}[$block] = [ $block_pos, $len ];
 			$block_pos += 4 + $len;
 			$block ++;
-			debug "(C) found $len bytes block.\n";
+#			debug "(C) found $len bytes block.\n";
 			
 		} else {
 			my $filename = readline $self->{fh};
@@ -175,7 +175,7 @@ sub cache_offsets {
 			$self->{files}{$filename} = [ $file_pos, $len ];
 			$file_pos += $len;
 
-			debug "(C) found $len bytes file $filename.\n";
+#			debug "(C) found $len bytes file $filename.\n";
 		}
 	}
 }	
@@ -183,7 +183,7 @@ sub cache_offsets {
 sub find_file_cached {
 	my ($self, $filename) = @_;
 
-	debug "In FFC.\n";
+	debug "In FFC for $filename.\n";
 	
 	my ($fpos, $flen) = @{ $self->{files}{$filename} };
 	
@@ -256,6 +256,7 @@ sub decompress_one_block {
 		} else {
 			readline $self->{fh};
 			$len = 0;
+			debug "Ignored filename.\n";
 		}
 	}
 
@@ -291,12 +292,15 @@ sub read_file {
 
 	my $data = $self->decompress_one_block();
 	substr ($data, 0, $skip) = undef;
-	
+	debug ",";
+
 	while (length($data) < $len) {
 		$data .= $self->decompress_one_block();
+		debug ".";
 	}
 
 	substr($data, $len) = undef;
+	debug "\n";
 	return $data;
 }
 
