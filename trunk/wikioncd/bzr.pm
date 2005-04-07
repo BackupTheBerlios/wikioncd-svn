@@ -274,7 +274,10 @@ sub read_file {
 		($len, $skip) = $self->find_file_nocache($file);
 	}
 
-	return(undef), debug "Not found!\n" unless $len;
+	unless ($len) {
+		debug "File $file not found.\n";
+		return undef;
+	}
 
 	debug "Getting $len bytes data.\n";
 
