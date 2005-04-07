@@ -69,13 +69,15 @@ sub key_to_title {
 
 %namespaces = (
 		0 => "",
+		4 => "wp",
 		10 => "t",
 		14 => "c",
 		);
 
 %namespace_reverse = (
 		"template" => 10,
-		"category" => 14
+		"category" => 14,
+		"wikipedia" => 4,
 		);
 
 sub init_index {
@@ -90,7 +92,8 @@ sub init_index {
 		next unless defined($namespace);
 
 #		next unless defined $::namespaces{$namespace};
-		next unless $namespace == 0 || $namespace == 10 || $namespace == 14;
+		next unless $namespace == 0 || $namespace == 4 || $namespace == 10 ||
+			$namespace == 14;
 #		next unless  $namespace == 10 || $namespace == 14;
 
 		my $ns = $namespaces{$namespace};
