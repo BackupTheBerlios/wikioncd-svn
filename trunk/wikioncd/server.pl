@@ -13,6 +13,7 @@ use Tree::Binary::Search;
 use POE::Component::Server::HTTP;
 use HTTP::Status;
 use URI::Escape;
+use DB_File;
 
 require 'bzr.pm';
 require 'w2h.pl';
@@ -24,13 +25,7 @@ sub load_redirect {
 
 	my %redir;
 
-	open my $fh, "out/$prefix/redirect";
-	while (<$fh>) {
-		chomp;
-		my ($from, $to) = split /:/;
-		$redir{$from} = $to;
-	}
-	close $fh;
+	tie %redir, "DB_File", "out/$prefix/redirect", O_RDONLY, 0666 or die $!;
 	return \%redir;
 }
 

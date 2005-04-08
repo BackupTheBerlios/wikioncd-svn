@@ -9,6 +9,8 @@
 # of the License, or (at your option) any later version.
 
 use IO::File;
+use DB_File;
+
 require 'bzr.pm';
 
 $::blocksize = 128;
@@ -248,11 +250,12 @@ sub write_redirect {
 		$::did_dir{$prefix} ++;
 	}
 
-	if (!defined $::redirect_fh{$prefix}) {	
-		$::redirect_fh{$prefix} = new IO::File;
-		open $::redirect_fh{"$prefix"}, '>', "out/$prefix/redirect" or die $!;
+	if (!defined $::redirect{$prefix}) {
+		unlink "out/$prefix/redirect";
+		tie %{$::redirect{$prefix}}, "DB_File", "out/$prefix/redirect",
+			O_RDWR|O_CREAT, 0666 or die $!;
 	}
-	print { $::redirect_fh{$prefix} } $key, ":", $pointer, "\n";
+	$::redirect{$prefix}{$key} = $pointer;
 }
 
 sub get_next_record {
@@ -292,10 +295,10 @@ mkdir("out");
 
 init_index($filename);
 
-print "Total FH: ", keys(%::redirect_fh) + keys(%::bzr), "\n";
+print "Total FH: ", keys(%::redirect) + keys(%::bzr), "\n";
 
 print "Flushing...";
-close $::redirect_fh{$_} for keys %::redirect_fh;
+untie %{$::redirect{$_}} for keys %::redirect;
 $::bzr{$_}->close_for_write() for keys %::bzr;
 print "\n";
 
