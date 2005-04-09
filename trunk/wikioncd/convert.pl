@@ -17,69 +17,22 @@ $::blocksize = 128;
 $::debug = 0;
 $::lang = "en";
 
-sub simplify_title {
-	my $title = shift;
-	$title =~ s/[\s_]+/ /g;
-	$title = ucfirst lc $title;
-	return $title;
-}
 
+sub gen_filename {
+	my $prefix = lc substr $_[0], 0, 2;
+	$prefix =~ s/[^A-Za-z0-9_]/_/g;
+	$prefix .= $prefix if length($prefix) < 2;
 
-#sub title_to_web {
-#	my ($title, $ns) = @_;
-#	$title = lc $title;
-#	$title =~ s/[^a-z0-9\_]/_/g;
-#	$title .= "-$ns" if$ns;
-#
-#	return $title;
-#}
+	my $first = substr $prefix, 0, 1;
 
-sub title_to_web {
-	my $simp = simplify_title(@_);
-
-# These two chars have to be completely boring
-	substr($simp, 0, 2) =~ s/[^A-Za-z0-9\_]/_/g;
-	return $simp;
-}
-
-sub title_to_key {
-	my ($title, $ns) = @_;
-
-	$ns = $ns || "";
-
-	my $simplified = title_to_web($title);
-
-	my $key = $simplified;
-
-	my $counter = 0;
-	while (defined($::titles{$ns}{$key}) && $::titles{$ns}{$key} ne $simplified) {
-		$counter ++;
-		$key = $simplified;
-		$key .= "_$counter";
-	}
-
-	$::titles{$ns}{$key} = $simplified unless defined($::titles{$ns}{$key});
-
-	return $key;
-}
-
-sub key_to_title {
-	my $key = shift;
-
-	return $::titles{$key};
+	return ($first, $prefix);
 }
 
 %namespaces = (
 		0 => "",
-		4 => "wp",
-		10 => "t",
-		14 => "c",
-		);
-
-%namespace_reverse = (
-		"template" => 10,
-		"category" => 14,
-		"wikipedia" => 4,
+		4 => "wikipedia:",
+		10 => "template:",
+		14 => "category:",
 		);
 
 sub init_index {
@@ -100,28 +53,25 @@ sub init_index {
 
 		my $ns = $namespaces{$namespace};
 
-		my $key = title_to_key($title, $ns);
+		my $key = $ns . $title;
 
 		if ($is_redirect) {
-			if ($text =~ /^\#REDIRECT \[\[([^]]+)\]/i) {
+			if ($text =~ /^\#REDIRECT \[\[([^:]]+)(:[^]]+)?\]/i) {
 				my $target = $1;
+				my $targns = $2;
 				
-				$target =~ s/^.*://;
-				$target = title_to_key($target, $ns);
+				$target = $targns . $target;
 
 				if ($target eq $key) {
 					print STDERR "Wtf? Circular redirect. key=$key ns=$ns\n" if $::debug;
 				} else {
-					print STDERR $key, " => ", title_to_key($target, $ns), "\n" if $::debug;
-					$key .= "_$ns" if $ns;
-					$target .= "_$ns" if $ns;
+					print STDERR $key, " => ", $target, "\n" if $::debug;
 					write_redirect($key, $target) if $target;
 				}
 			}
 		} else {
 			print STDERR $key, "\n" if $::debug;
-			$key .= "_$ns" if $ns;
-			write_data($key, \$text);
+			write_data($title, $ns, \$text);
 		}
 
 		$n ++;
@@ -134,15 +84,12 @@ sub init_index {
 }
 
 sub write_data {
-	my ($key, $text) = @_;
+	my ($title, $ns, $text) = @_;
 
 	RemoveHTMLcomments($text);
-	rewrite_links($text);	
+#	rewrite_links($text);	
 
-	my $prefix = substr $key, 0, 2;
-	$prefix .= lc $prefix if length($prefix) < 2;
-
-	my $onechar = substr $prefix, 0, 1;
+	my ($onechar, $prefix) = gen_filename($title);
 
 	if (!$::did_dir{$onechar}) {
 		mkdir "out/$onechar" unless -d "out/$onechar";
@@ -154,7 +101,7 @@ sub write_data {
 				"out/$onechar/$prefix.bzr", $::blocksize) or die $!; 
 	}
 
-	$::bzr{$prefix}->write_file($key, $$text) 
+	$::bzr{$prefix}->write_file($ns . $title, $$text) 
 }
 
 sub RemoveHTMLcomments {
