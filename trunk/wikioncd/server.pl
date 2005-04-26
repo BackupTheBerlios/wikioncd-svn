@@ -46,6 +46,7 @@ sub gen_filename {
 	my $prefix = lc substr $_[0], 0, 2;
 	$prefix =~ s/[^A-Za-z0-9_]/_/g;
 	$prefix .= $prefix if length($prefix) < 2;
+	$prefix =~ s/^[0-9]/#/;
 
 	my $first = substr $prefix, 0, 1;
 
