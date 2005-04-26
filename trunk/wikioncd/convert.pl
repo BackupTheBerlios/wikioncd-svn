@@ -11,7 +11,7 @@
 use IO::File;
 use DB_File;
 
-require 'bzr.pm';
+require 'bzr-inline.pm';
 
 $::blocksize = 128;
 $::debug = 0;
@@ -28,11 +28,24 @@ sub gen_filename {
 	return ($first, $prefix);
 }
 
+
+sub canonicalize {
+	my ($filename, $namespace) = @_;
+	$namespace = lc $namespace;
+	$namespace .= ":" if $namespace;
+
+	$filename = ucfirst lc $filename;
+	$filename =~ s/[^A-Za-z0-9,.'()\x80-\xff-]/_/g;
+
+	return $namespace . $filename;
+}
+
+
 %namespaces = (
 		0 => "",
-		4 => "wikipedia:",
-		10 => "template:",
-		14 => "category:",
+		4 => "wikipedia",
+		10 => "template",
+		14 => "category",
 		);
 
 sub init_index {
@@ -46,14 +59,12 @@ sub init_index {
 		my ($namespace, $title, $text, undef, $is_redirect) = get_next_record($fh);
 		next unless defined($namespace);
 
-#		next unless defined $::namespaces{$namespace};
 		next unless $namespace == 0 || $namespace == 4 || $namespace == 10 ||
 			$namespace == 14;
-#		next unless  $namespace == 10 || $namespace == 14;
 
 		my $ns = $namespaces{$namespace};
 
-		my $key = $ns . $title;
+		my $key = canonicalize($title, $ns);
 
 		if ($is_redirect) {
 			if ($text =~ /^\#REDIRECT \[\[([^:]]+)(:[^]]+)?\]/i) {
@@ -101,7 +112,7 @@ sub write_data {
 				"out/$onechar/$prefix.bzr", $::blocksize) or die $!; 
 	}
 
-	$::bzr{$prefix}->write_file($ns . $title, $$text) 
+	$::bzr{$prefix}->write_file(canonicalize($title, $ns), $$text) 
 }
 
 sub RemoveHTMLcomments {
@@ -190,7 +201,7 @@ sub rewrite_link {
 sub write_redirect {
 	my ($key, $pointer) = @_;
 
-	my $prefix = substr $key, 0, 1;
+	my ($prefix, undef) = gen_filename($key);
 
 	if (!$::did_dir{$prefix}) {
 		mkdir "out/$prefix" unless -d "out/$prefix";
@@ -200,7 +211,7 @@ sub write_redirect {
 	if (!defined $::redirect{$prefix}) {
 		unlink "out/$prefix/redirect";
 		tie %{$::redirect{$prefix}}, "DB_File", "out/$prefix/redirect",
-			O_RDWR|O_CREAT, 0666 or die $!;
+			O_RDWR|O_CREAT, 0666 or die "$! opening out/$prefix/redirect";
 	}
 	$::redirect{$prefix}{$key} = $pointer;
 }

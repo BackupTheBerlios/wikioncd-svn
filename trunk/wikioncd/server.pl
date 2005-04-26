@@ -15,7 +15,7 @@ use HTTP::Status;
 use URI::Escape;
 use DB_File;
 
-require 'bzr.pm';
+require 'bzr-inline.pm';
 require 'w2h.pl';
 
 our $cache = 1;
@@ -25,53 +25,33 @@ sub load_redirect {
 
 	my %redir;
 
-	tie %redir, "DB_File", "out/$prefix/redirect", O_RDONLY, 0666 or die $!;
+	tie %redir, "DB_File", "out/$prefix/redirect", O_RDONLY, 0666
+		or (%redir = ());
 	return \%redir;
 }
 
+sub canonicalize {
+	my ($filename, $namespace) = @_;
+	$namespace = lc $namespace;
+	$namespace .= ":" if $namespace;
 
-sub simplify_title {
-	my $title = shift;
-	$title =~ s/[\s_]+/ /g;
-	$title = ucfirst lc $title;
-	return $title;
+	$filename = ucfirst lc $filename;
+	$filename =~ s/[^A-Za-z0-9,.'()\x80-\xff-]/_/g;
+
+	return $namespace . $filename;
 }
 
 
-sub title_to_web {
-	my ($title, $namespace) = @_;
-	my $simp = simplify_title($title);
+sub gen_filename {
+	my $prefix = lc substr $_[0], 0, 2;
+	$prefix =~ s/[^A-Za-z0-9_]/_/g;
+	$prefix .= $prefix if length($prefix) < 2;
 
-	
-# These two chars have to be completely boring
-	substr($simp, 0, 2) =~ s/[^A-Za-z0-9\_]/_/g;
+	my $first = substr $prefix, 0, 1;
 
-	$simp .= "_$namespace" if $namespace;
-
-	return $simp;
+	return ($first, $prefix);
 }
 
-sub title_to_key {
-	my ($title, $ns) = @_;
-	my $simplified = title_to_web($title);
-
-	my $key = $simplified;
-
-	$key .= "_$ns" if $ns;
-
-	$counter = 0;
-	while (defined($::titles{$key}) && $::titles{$key} ne $simplified) {
-		$counter ++;
-		
-		$key = $simplified;
-		$key .= "_$ns" if $ns;
-		$key .= "_$counter";
-	}
-
-	$::titles{$key} = $simplified unless defined($::titles{$key});
-
-	return $key;
-}
 
 sub wiki_handler {
 	my ($request, $response) = @_;
@@ -124,9 +104,9 @@ EO500
 sub get_wiki {
 	my ($page, $namespace) = @_;
 
-	my $filename = title_to_web($page, $namespace);
-	
-	my $first = substr $filename, 0, 1;
+	my $filename = canonicalize($page, $namespace);
+
+	my ($first, $prefix) = gen_filename($page);
 
 	$::redirect{$first} = load_redirect($first) unless defined $::redirect{$first};
 
@@ -141,14 +121,12 @@ sub get_wiki {
 	}
 
 
-	my $file = read_file($filename);
+	my $file = read_file($page, $namespace);
 	return $file;
 }
 
 sub do_wiki {
 	my ($response, $page, $namespace) = @_;
-
-	my $filename = title_to_web($page);
 
 	my $file = get_wiki($page, $namespace);
 	
@@ -156,7 +134,7 @@ sub do_wiki {
 		$response->code(RC_OK);
 		$response->header("Content-Type" => "text/html");
 	
-		my $html = WikiToHTML($filename, $file, $namespace, 1, 1);
+		my $html = WikiToHTML($page, $file, $namespace, 1, 1);
 
 		$response->content($html);
 	} else {
@@ -166,11 +144,15 @@ sub do_wiki {
 }
 
 sub read_file {
-	my $filename = shift;
+	my ($page, $namespace) = @_;
 
-	my $prefix = substr $filename, 0, 2;
-	$prefix .= lc $prefix if length($prefix) < 2;
-	my $first = substr $prefix, 0, 1;
+	my $filename = canonicalize($page, $namespace);
+
+	print STDERR "read_file wants $filename -- " if $::debug;
+
+	my ($first, $prefix) = gen_filename($page);
+
+	print STDERR "geting it from $first/$prefix.bzr\n" if $::debug;
 
 	if (!defined $::bzr{$prefix}) {
 		$::bzr{$prefix} = Compress::Bzip2::RandomAccess->new_from_file(

@@ -126,7 +126,22 @@ sub WikiToHTML {
 		## Remove newlines from parameters			
 		$params =~ s/\\r\\n//g;
 		$params =~ s/\\n//g;
-		@params = split(/\|/, $params);
+
+		my $count = 0;
+
+		while ($params =~ /(\[\[|\]\]|\|)/gc) {
+			$count += { "[[" => 1, "]]" => -1, "|" => 0 }->{$1};
+
+			if ($1 eq "|" && $count == 0) {
+				my $param = substr $params, 0, pos($params) - 1, '';
+				push @params, $param;
+
+				substr($params, 0, 1) = '';
+				pos $params = 0;
+			}
+		}
+		
+		push @params, $params;	
 
 		## Put underscore instead of spaces for filename
 		$variable =~ s/\s/_/g;
@@ -153,7 +168,7 @@ sub WikiToHTML {
 					$ns = $1;
 					$msg = $2;
 					} else {
-						$ns = "t";
+						$ns = "template";
 					}
 #				print LOGFILE "Now looking at $msg \n";
 				$replace = &GetMsgValue($msg, $ns);
@@ -222,7 +237,7 @@ sub WikiToHTML {
 
 	my $desperation = 0;
 	
-	while ($text =~ /\[\[.*\]\]/) {
+	while ($text =~ /\[\[/) {
 #		print STDERR $text, "\n";
 		my $count = 0;
 		while ($text =~ /(\[\[|\]\])/gc) {
@@ -231,7 +246,7 @@ sub WikiToHTML {
 		}
 		$desperation ++;
 		if ($desperation == 1000) {
-			print STDERR "$text\n";
+			print STDERR "BUG replacing links in $text\n";
 		}
 
 		$text =~ s/\[\[(.*)\]\]\G/ProcessLink($1)/e;
@@ -241,7 +256,7 @@ sub WikiToHTML {
 	
 	$nextline = "\n";
 	
-	$text =~ s|\r\n\r\n|\n<p>\n|go;			# Double newline = paragraph
+#	$text =~ s|\r\n\r\n|\n<p>\n|go;			# Double newline = paragraph
 	$text =~ s|\r\n|\n|go;						# Single newline
 	$text =~ s|\n\n|\n<p>\n|go;
 
@@ -508,7 +523,7 @@ END_STARTTOC
 				$number = join(".", @counter[0..$level]);
 				}
 			
-			$TOC_html .= "<A CLASS=\"internal\" HREF=\"#${name}\">${number} ${name}</A><BR>\n";
+			$TOC_html .= "$number <A CLASS=\"internal\" HREF=\"#${name}\">$name</A><BR>\n";
 			}
 			
 		# End TOC
@@ -939,14 +954,13 @@ sub RemoveHTMLentities {
 
 sub GetFileName {
 	my ($linkname, $namespace) = @_;
-	my $uri = title_to_web($linkname);
-	$uri = "$namespace:$uri" if $namespace;
+	my $uri = canonicalize($linkname, $namespace);
 	return "wiki/" . uri_escape($uri);
 }
 
 sub GetMsgValue {
 	my $file = shift;
-	my $ns = shift || "t";
+	my $ns = shift || "template";
 	my $ret = get_wiki($file, $ns);
 #	$ret = RemoveHTMLcomments($ret);
 	return $ret;
