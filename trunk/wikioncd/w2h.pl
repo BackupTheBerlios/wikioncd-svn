@@ -19,10 +19,10 @@ $include_media = 0;
 $include_toc = 3;
 
 %Wikiarray = (
-"numberofarticles" => "450000",
+"numberofarticles" => "500,000",
 "currentyear" => "2005",
-"currentmonthname" => "March",
-"currentday" => "9",
+"currentmonthname" => "April",
+"currentday" => "21",
 "stub" => "",
 "writer-stub" => "",
 );
