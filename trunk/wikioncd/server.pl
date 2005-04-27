@@ -114,8 +114,10 @@ sub get_wiki {
 	my $count = 0;
 	
 	while ($::redirect{$first}{$filename}) {
-		$filename = $::redirect{$first}{$filename};
-		my $first = substr $filename, 0, 1;
+		($namespace, $page) = split "\0", $::redirect{$first}{$filename};
+		$filename = canonicalize($page, $namespace);
+		($first, $prefix) = gen_filename($page);
+
 		$::redirect{$first} = load_redirect($first) unless defined $::redirect{$first};
 		$count ++;
 		last if $count > 3;

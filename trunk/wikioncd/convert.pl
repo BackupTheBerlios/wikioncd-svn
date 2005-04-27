@@ -68,17 +68,19 @@ sub init_index {
 		my $key = canonicalize($title, $ns);
 
 		if ($is_redirect) {
-			if ($text =~ /^\#REDIRECT \[\[([^:]]+)(:[^]]+)?\]/i) {
+			if ($text =~ /^\#REDIRECT \[\[([^\]]+)\]\]/i) {
 				my $target = $1;
-				my $targns = $2;
+				my $targns, $targkey;
+			
+				if ($target =~ /:/) {
+					($targns, $target) = split /:/, $target, 2;
+				}
 				
-				$target = $targns . $target;
-
-				if ($target eq $key) {
+				if ($key eq canonicalize($target, $targns)) {
 					print STDERR "Wtf? Circular redirect. key=$key ns=$ns\n" if $::debug;
 				} else {
 					print STDERR $key, " => ", $target, "\n" if $::debug;
-					write_redirect($key, $target) if $target;
+					write_redirect($title, $ns, $target, $targns) if $target;
 				}
 			}
 		} else {
@@ -200,9 +202,9 @@ sub rewrite_link {
 }
 
 sub write_redirect {
-	my ($key, $pointer) = @_;
+	my ($title, $ns, $target, $targns) = @_;
 
-	my ($prefix, undef) = gen_filename($key);
+	my ($prefix, undef) = gen_filename($title);
 
 	if (!$::did_dir{$prefix}) {
 		mkdir "out/$prefix" unless -d "out/$prefix";
@@ -214,7 +216,9 @@ sub write_redirect {
 		tie %{$::redirect{$prefix}}, "DB_File", "out/$prefix/redirect",
 			O_RDWR|O_CREAT, 0666 or die "$! opening out/$prefix/redirect";
 	}
-	$::redirect{$prefix}{$key} = $pointer;
+
+	my $key = canonicalize($title, $ns);
+	$::redirect{$prefix}{$key} = "$targns\0$target";
 }
 
 sub get_next_record {
