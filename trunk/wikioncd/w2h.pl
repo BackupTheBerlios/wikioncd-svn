@@ -49,7 +49,7 @@ $list_continue{" "} = "";
 $list_close{" "} = "</pre>";
 
 sub WikiToHTML {
-	my ($title, $text, $namespace, $do_toc, $do_html) = @_;
+	my ($title, $text, $namespace, $do_toc, $do_html, $redir_from) = @_;
 	my ($page, $title_spaces, $heading, $sep, $protocol);
 	my ($line, $n, $item, $html_lists, $diff, $opened, $gone_on, $splitted, $want_toc, @TOC);
 	my ($tex_start, $tex_end, $math);
@@ -58,7 +58,6 @@ sub WikiToHTML {
 	
 #	return $text if ($level > 5)
 
-	
 	# Remove <nowiki> segments, saving them
 	
 	@nowiki = ();
@@ -593,6 +592,10 @@ END_STARTTOC
 		{
 		$title_spaces = $title;
 		$title_spaces =~ tr/_/ /;
+		if ($redir_from) {
+			$redir_from = qq(&nbsp;<small>(redirected from <b>$redir_from</b>)</small>);
+		}
+	
 
 		$article_link = "http://${wiki_language}.wikipedia.org/wiki/${title}";
 		if ($edit_article_link>0)
@@ -610,7 +613,7 @@ $page = <<ENDHTMLPAGE;
 <body bgcolor='#FFFFFF'>
 <div id=topbar><table width='98%' border=0><tr><td><a href="${MainPagePath}" title="${MainPageName}">${MainPageName}</a> | <b><a href="${article_link}" title="${title_spaces}">See live article</a></b>${alphabetical_index}</td>
 <td align=right nowrap><form name=search class=inline method=get action="/search/"><input name=q size=19><input type=submit value=Search></form></td></tr></table></div>
-<div id=article><h1>$title_spaces</h1>$text</div><br><div id=footer><table border=0><tr><td>
+<div id=article><h1>$title_spaces$redir_from</h1>$text</div><br><div id=footer><table border=0><tr><td>
 <small>This article is from <a href="http://www.wikipedia.org/">Wikipedia</a>. All text is available under the terms of the <a href="../../g/gn/gnu_free_documentation_license.html">GNU Free Documentation License</a>.</small></td></tr></table></div></body></html>
 ENDHTMLPAGE
 

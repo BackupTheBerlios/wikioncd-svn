@@ -108,12 +108,13 @@ sub get_wiki {
 	my $filename = canonicalize($page, $namespace);
 
 	my ($first, $prefix) = gen_filename($page);
-
+	
 	$::redirect{$first} = load_redirect($first) unless defined $::redirect{$first};
 
 	my $count = 0;
 	
 	while ($::redirect{$first}{$filename}) {
+
 		($namespace, $page) = split "\0", $::redirect{$first}{$filename};
 		$filename = canonicalize($page, $namespace);
 		($first, $prefix) = gen_filename($page);
@@ -125,19 +126,24 @@ sub get_wiki {
 
 
 	my $file = read_file($page, $namespace);
-	return $file;
+	return $file, ($count ? $filename : undef);
 }
 
 sub do_wiki {
 	my ($response, $page, $namespace) = @_;
-
-	my $file = get_wiki($page, $namespace);
+	my ($file, $ended_up_at) = get_wiki($page, $namespace);
+	my $original_page;
+	
+	if ($ended_up_at) {
+		$original_page = $page;
+		$page = $ended_up_at;
+	}
 	
 	if ($file) {
 		$response->code(RC_OK);
 		$response->header("Content-Type" => "text/html");
 	
-		my $html = WikiToHTML($page, $file, $namespace, 1, 1);
+		my $html = WikiToHTML($page, $file, $namespace, 1, 1, $original_page);
 
 		$response->content($html);
 	} else {
