@@ -128,6 +128,8 @@ sub WikiToHTML {
 
 		my $count = 0;
 
+		@params = ();
+
 		while ($params =~ /(\[\[|\]\]|\|)/gc) {
 			$count += { "[[" => 1, "]]" => -1, "|" => 0 }->{$1};
 
@@ -140,10 +142,10 @@ sub WikiToHTML {
 			}
 		}
 		
-		push @params, $params;	
+		push @params, $params if $params =~ /\S/;	
 
 		## Put underscore instead of spaces for filename
-		$variable =~ s/\s/_/g;
+#		$variable =~ s/\s/_/g;
 
 #		print STDERR "Variable is: $variable \n";		
 #		print STDERR "Params are: ".join("**",@params)."\n";
@@ -170,7 +172,7 @@ sub WikiToHTML {
 						$ns = "template";
 					}
 #				print LOGFILE "Now looking at $msg \n";
-				$replace = &GetMsgValue($msg, $ns);
+				$replace = GetMsgValue($msg, $ns);
 				
 				$templates_num = $templates_num+1;
 				$replace = "" if ($templates_num > $templates_max);
@@ -964,10 +966,8 @@ sub GetFileName {
 sub GetMsgValue {
 	my $file = shift;
 	my $ns = shift || "template";
-	my $ret = get_wiki($file, $ns);
-#	$ret = RemoveHTMLcomments($ret);
+	my ($ret) = get_wiki($file, $ns);
 	return $ret;
 }
-
 
 1;

@@ -19,6 +19,7 @@ require 'bzr-inline.pm';
 require 'w2h.pl';
 
 our $cache = 1;
+our $debug = 1;
 
 sub load_redirect {
 	my $prefix = shift;
@@ -114,10 +115,12 @@ sub get_wiki {
 	my $count = 0;
 	
 	while ($::redirect{$first}{$filename}) {
+		print STDERR "Following redirect: $filename => ";
 
 		($namespace, $page) = split "\0", $::redirect{$first}{$filename};
 		$filename = canonicalize($page, $namespace);
 		($first, $prefix) = gen_filename($page);
+		print STDERR "$filename\n";
 
 		$::redirect{$first} = load_redirect($first) unless defined $::redirect{$first};
 		$count ++;
@@ -171,6 +174,7 @@ sub read_file {
 		}
 	}
 	my $ret = $::bzr{$prefix}->read_file($filename);
+	print STDERR "got ", length $ret, " bytes of data.\n" if $::debug;
 	return $ret;
 }
 
