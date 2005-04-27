@@ -19,7 +19,6 @@ require 'bzr-inline.pm';
 require 'w2h.pl';
 
 our $cache = 1;
-our $debug = 1;
 
 sub load_redirect {
 	my $prefix = shift;
