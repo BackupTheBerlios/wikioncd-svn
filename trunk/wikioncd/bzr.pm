@@ -8,7 +8,6 @@
 # as published by the Free Software Foundation; either version 2
 # of the License, or (at your option) any later version.
 
-
 package Compress::Bzip2::RandomAccess;
 
 use Compress::Bzip2;
