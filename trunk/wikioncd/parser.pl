@@ -11,7 +11,7 @@ sub match_balanced {
 
 	my $start = pos($$data);
 
-	while ($$data =~ m#\G.*?(\Q$open\E|\Q$close\E|(?i:<nowiki>))#cg) {
+	while ($$data =~ m#(\Q$open\E|\Q$close\E|(?i:<nowiki>))#cg) {
 		my $token = $1;
 		if ($token =~ m#<nowiki>#i) {
 			$$data =~ m#\G.*</nowiki>#cgi;
@@ -67,13 +67,93 @@ sub do_list {
 	$$stash = $sigil;
 }	
 
+sub do_pre {
+	my ($data, $pre, $cb) = @_;
+
+	my $temp = substr($$data, pos($$data), 3);
+
+	if ($$data =~ /\G +/cg) {
+		if (!$$pre) {
+			$cb->{pre_open}->();
+			$$pre = 1;
+		}
+	} else {
+		if ($$pre) {
+			$cb->{pre_close}->();
+			$$pre = 0;
+		}
+	}
+}
+
+sub do_link {
+	my ($link, $suffix, $cb) = @_;
+	my $appearance;
+
+	if ($link =~ /^:/) {
+		($appearance = $link) =~ s/://;
+		return ($link, $appearance);
+	}
+
+	if ($link =~ /\|/) {
+		($link, $appearance) = split /\|/, $link, 2;
+	} else {
+		$appearance = $link;
+	}
+
+	$appearance .= $suffix;
+	$cb->{'link'}->($link, $appearance);
+}
+
+sub do_template {
+	my ($template) = @_;
+	my $params; my @params; my %params;
+	my $link = 0;
+	my $prev = 0;
+
+	($template, $params) = split /\|/, $template, 2;
+
+	while ($params && $params =~ /(\[\[|\]\]|<nowiki>|\|)/cgis) {
+		my $token = $1;
+		if ($token eq '[[') {
+			$link ++;
+		} elsif ($token eq ']]') {
+			$link --;
+		} elsif (lc $token eq '<nowiki>') {
+			$params =~ m#</nowiki>#cgis;
+		} else { # $token eq "|"
+			if ($link == 0) {
+				my $pos = pos($params);
+				my $len = $pos - $prev;
+				my $param = substr($params, $prev, $len - 1);
+				$prev = $pos;
+				if ($param =~ /=/) {
+					my $name;
+					($name, $param) = split /=/, $param, 2;
+					$params{$name} = $param;
+				}
+				push @params, $param;
+			}
+		}
+	}
+
+	if ($params && $params =~ /\G(\S+)/) {
+		push @params, $1;
+	}
+
+	print "Template: $template, params (";
+	print join ',', map { "''$_''" } @params;
+	print ")<br />";
+}
+	
 sub parse_wiki {
 	my ($data, $cb) = @_;
 
 	my $list = "";
+	my $pre = 0;
 
 	while ($data !~ /\G\z/cg) {
 		if ($data =~ /\G\n\n/cgs) {
+			do_pre(\$data, \$pre, $cb);
 			if ($data =~ /\G(?<=\n)([*#]+)/cg) {
 				do_list($1, \$list, $cb);
 			} else {
@@ -81,30 +161,37 @@ sub parse_wiki {
 			}
 			$cb->{paragraph}->();
 		} elsif ($data =~ /\G\n/cgs) {
+			do_pre(\$data, \$pre, $cb);
 			if ($data =~ /\G(?<=\n)([*#]+)/cg) {
 				do_list($1, \$list, $cb);
 			} else {
 				do_list("", \$list, $cb);
 			}
 			$cb->{whitespace}->();
-		} elsif ($data =~ /\G\s/cg) {
+		} elsif ($data =~ /\G\s+/cg) {
 			$cb->{whitespace}->();
-		} elsif ($data =~ m#\G<nowiki>(.*?)</nowiki>#cgi) {
+		} elsif ($data =~ m#\G<nowiki>(.*?)</nowiki>#cgis) {
 			$cb->{nowiki}->($1);
-		} elsif ($data =~ m#\G<math>(.*?)</math>#cgi) {
+		} elsif ($data =~ m#\G<math>(.*?)</math>#cgis) {
 			$cb->{math}->($1);
-		} elsif ($data =~ /\G<!--(.*?)-->/cg) {
+		} elsif ($data =~ /\G<!--(.*?)-->/cgs) {
 			$cb->{comment}->($1);
 		} elsif ($data =~ /\G(?<=\n)-----*/cg) {
 			$cb->{divider}->();
 		} elsif ($data =~ /\G\[\[/cg) {
 			pos($data) -= 2;
 			my $link = match_balanced(\$data, "[[", "]]");
-			$cb->{'link'}->($link);
-		} elsif ($data =~ /\G\{\{/cg) {
-			pos($data) -= 2;
+			$link = substr($link, 2);
+			substr($link, -2, 2, '');
+			$data =~ /\G([[:alnum:]]+)/cg;
+			my $suffix = defined($1)?$1:"";
+			do_link($link, $suffix, $cb);
+		} elsif ($data =~ /\G(?<!\{)\{\{[^{]/cg) {
+			pos($data) -= 3;
 			my $template = match_balanced(\$data, "{{", "}}");
-			$cb->{template}->($template);
+			$template = substr($template, 2);
+			substr($template, -2, 2, '');
+			do_template($template);
 		} elsif ($data =~ /\G''''/cg) {
 			my $start = pos($data);
 			$data =~ m#\G.*?''#cg;
@@ -150,8 +237,8 @@ parse_wiki($data, {
 		'nowiki' => sub { print $_[0] },
 		'paragraph' => sub { print "<p />\n\n" },
 		'list' => sub { print "<br />List: <code>$_[0]</code>\n"; },
-		'link' => sub { print "<code>$_[0]</code>\n" },
-		'template' => sub { print "<code>$_[0]</code>\n" },
+		'link' => sub { print "<code>$_[0]</code>" },
+		'template' => sub { print "<code>$_[0]</code>" },
 		'em1_open' => sub { print "<i>"; },
 		'em1_close' => sub { print "</i>"; },
 		'em2_open' => sub { print "<b>"; },
@@ -161,7 +248,8 @@ parse_wiki($data, {
 		'sec1' => sub { print "<h1>$_[0]</h1>\n" },
 		'sec2' => sub { print "<h2>$_[0]</h2>\n" },
 		'sec3' => sub { print "<h3>$_[0]</h3>\n" },
-		'comment' => sub { print "<!-- $_[0] -->" },
+#		'comment' => sub { print "<!-- $_[0] -->" },
+		'comment' => sub { 1 },
 		'divider' => sub { print "<hr>\n" },
 		'whitespace' => sub { print " "; },
 		'list_#_open' => sub { print "<ol>" },
@@ -172,6 +260,9 @@ parse_wiki($data, {
 		'list_*_item_open' => sub { print "<li>" },
 		'list_*_item_close' => sub { print "</li>" },
 		'list_*_close' => sub { print "</ul>" },
+		'pre_open' => sub { print "<pre>" },
+		'pre_close' => sub { print "</pre>" },
+		'link' => sub { print qq(<a href="/$_[0]">$_[1]</a>); },
 		});
 
 print "</body></html>";
