@@ -89,11 +89,6 @@ sub do_link {
 	my ($link, $suffix, $cb) = @_;
 	my $appearance;
 
-	if ($link =~ /^:/) {
-		($appearance = $link) =~ s/://;
-		return ($link, $appearance);
-	}
-
 	if ($link =~ /\|/) {
 		($link, $appearance) = split /\|/, $link, 2;
 	} else {
@@ -155,6 +150,9 @@ sub do_template {
 		 col => 'table_cell_close',
 		 header => 'table_header_close',
 		 table => 'table_close',
+		 dl => 'def_list_close',
+		 dt => 'def_title_close',
+		 dd => 'def_data_close',
 		);
 
 	sub close_tags {
@@ -175,12 +173,12 @@ sub parse_wiki {
 	my ($data, $cb) = @_;
 
 	my %st;
-	@st{qw(list)} = qw();
+	@st{qw(list)} = ("");
 
 	while ($data !~ /\G\z/cg) {
 		if ($data =~ /\G\n\n/cgs) {
 			do_pre(\$data, \$st{pre}, $cb);
-			if ($data =~ /\G(?:(?<=\n)|\A)([*#]+)/cg) {
+			if ($data =~ /\G(?<=\n)([*#]+)/cg) {
 				do_list($1, \$st{list}, $cb);
 			} else {
 				do_list("", \$st{list}, $cb);
@@ -189,10 +187,13 @@ sub parse_wiki {
 			close_tags(\%st, $cb, qw(em1 em2 em3 caption));
 		} elsif ($data =~ /\G\n/cgs) {
 			do_pre(\$data, \$st{pre}, $cb);
-			if ($data =~ /\G(?:(?<=\n)|\A)([*#]+)/cg) {
+			if ($data =~ /\G(?<=\n)([*#]+)/cg) {
 				do_list($1, \$st{list}, $cb);
 			} else {
 				do_list("", \$st{list}, $cb);
+			}
+			if ($data !~ /\G(?<=\n)[;:]/cg) {
+				close_tags(\%st, $cb, qw(dd dt dl));
 			}
 			$cb->{whitespace}->();
 			close_tags(\%st, $cb, qw(em1 em2 em3 caption));
@@ -204,6 +205,23 @@ sub parse_wiki {
 			$cb->{math}->($1);
 		} elsif ($data =~ /\G<!--(.*?)-->/cgs) {
 			$cb->{comment}->($1);
+		} elsif ($data =~ /\G(?:(?<=\n)|\A);/cg) {
+			close_tags(\%st, $cb, qw(dd dt));
+			$cb->{def_list_open}->();
+			$cb->{def_title_open}->();
+			@st{qw(dl dt)} = qw(1 1);
+		} elsif ($data =~ /\G(?:(?<=\n)|\A):/cg) {
+			if ($st{dl}) {
+				close_tags(\%st, $cb, 'dt');
+				$cb->{def_data_open}->();
+				$st{dd} = 1;
+			} else {
+				$cb->{indent}->();
+			}
+		} elsif ($st{dd} && $data =~ /\G(?<=\s):/cg) {
+			close_tags(\%st, $cb, 'dt');
+			$cb->{def_data_open}->();
+			$st{dd} = 1;
 		} elsif ($data =~ /\G(?:(?<=\n)|\A)-----*/cg) {
 			$cb->{divider}->();
 		} elsif ($data =~ /\G(?:(?<=\n)|\A){\|(.*)/cg) {
@@ -228,7 +246,7 @@ sub parse_wiki {
 				$link = pos($data);
 			}
 			pos($data) = $start;
-			if ($data =~ /\G.*?\|/cg) {
+			if ($data =~ /\G.*(?<!\|)\|(?!\|)/cg) {
 				$bar = pos($data);
 			}
 
@@ -355,14 +373,23 @@ sub parse_wiki {
 				'pre_open' => sub { print "<pre>" },
 				'pre_close' => sub { print "</pre>" },
 				'link' => sub { print qq(<a href="/$_[0]">$_[1]</a>); },
-				'table_open' => sub { print qq(<table $_[0]>\n) },
-				'table_close' => sub { print "</table>\n" },
-				'table_row_open' => sub { print qq(<tr $_[0]>\n) },
-				'table_row_close' => sub { print "</tr>\n" },
-				'table_cell_open' => sub { print qq(<td $_[0]>\n) },
-				'table_cell_close' => sub { print "</td>\n" },
-				'table_caption_open' => sub { print "<caption>\n" },
-				'table_caption_close' => sub { print "</caption>\n" },
+				'table_open' => sub { print qq(<table $_[0]>) },
+				'table_close' => sub { print "</table>" },
+				'table_row_open' => sub { print qq(<tr $_[0]>) },
+				'table_row_close' => sub { print "</tr>" },
+				'table_cell_open' => sub { print qq(<td $_[0]>) },
+				'table_cell_close' => sub { print "</td>" },
+				'table_header_open' => sub { print qq(<th $_[0]>) },
+				'table_header_close' => sub { print "</th>" },
+				'table_caption_open' => sub { print "<caption>" },
+				'table_caption_close' => sub { print "</caption>" },
+				'def_list_open' => sub { print "<dl>" },
+				'def_list_close' => sub { print "</dl>" },
+				'def_title_open' => sub { print "<dt>" },
+				'def_title_close' => sub { print "</dt>" },
+				'def_data_open' => sub { print "<dd>" },
+				'def_data_close' => sub { print "</dd>" },
+				'indent' => sub { 1 },
 		});
 
 		print "</body></html>";
