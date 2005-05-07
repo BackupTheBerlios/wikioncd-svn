@@ -230,7 +230,7 @@ sub parse_wiki {
 			$st{table} ++;
 		} elsif ($data =~ /\G(?:(?<=\n)|\A)\|\}/cg) {
 			close_tags(\%st, $cb, qw(col header row table));
-		} elsif ($data =~ /\G(?:(?<=\n)|\A)\|-(.*?)/cg) {
+		} elsif ($data =~ /\G(?:(?<=\n)|\A)\|-(.*)/cg) {
 			close_tags(\%st, $cb, qw(col header row));
 			$cb->{table_row_open}->($1);
 			$st{row} = 1;
@@ -246,7 +246,7 @@ sub parse_wiki {
 				$link = pos($data);
 			}
 			pos($data) = $start;
-			if ($data =~ /\G.*(?<!\|)\|(?!\|)/cg) {
+			if ($data =~ /\G.*?\|(?!\|)/cg) {
 				$bar = pos($data);
 			}
 
@@ -268,11 +268,11 @@ sub parse_wiki {
 			my ($link, $bar) = (undef, undef);
 			my $params;
 
-			if ($data =~ /\G.*\[\[/cg) {
+			if ($data =~ /\G.*?\[\[/cg) {
 				$link = pos($data);
 			}
 			pos($data) = $start;
-			if ($data =~ /\G.*\|/cg) {
+			if ($data =~ /\G.*?\|(?!\|)/cg) {
 				$bar = pos($data);
 			}
 
