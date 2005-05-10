@@ -1,9 +1,17 @@
 #!/usr/bin/perl
+###
+# Wikitext Parser
+# Part of WikiOnCD
+# Copyright (C) 2005, Andrew Rodland <arodland@entermail.net>
 #
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+
 
 use strict;
 use warnings;
-
 
 sub trim {
 	my $data = shift;
@@ -12,6 +20,21 @@ sub trim {
 	$data =~ s/[ \n\t\r\0\x0b]*$//g;
 
 	return $data;
+}
+
+sub deref_var {
+	my ($magic, $var) = @_;
+
+	$var = lc trim($var);
+
+	my $data = $magic->{$var};
+	if (!defined($data)) {
+		return "Unknown variable $var.";
+	} elsif (ref($data) eq 'CODE') {
+		return $data->();
+	} else {
+		return $data;
+	}
 }
 
 sub match_balanced {
@@ -110,7 +133,7 @@ sub do_link {
 }
 
 sub do_template {
-	my ($template) = @_;
+	my ($template, $cb, $magic, $vars, $st) = @_;
 	my $params; my @params; my %params;
 	my $link = 0;
 	my $prev = 0;
@@ -145,6 +168,8 @@ sub do_template {
 	if ($params && $params =~ /\G(\S+)/) {
 		push @params, $1;
 	}
+
+	$template =~ s/(?<!{){{([^{}]+)}}/deref_var($magic, $1)/eg;
 
 	print "Template: $template, params (";
 	print join ',', map { "''$_''" } @params;
@@ -307,23 +332,26 @@ sub parse_wiki {
 			$data =~ /\G([[:alnum:]]+)/cg;
 			my $suffix = defined($1)?$1:"";
 			do_link($link, $suffix, $cb);
-#		} elsif ($data =~ /\G\{\{\{/cg) {
-#			pos($data) -= 3;
-#			my $varname = match_balanced(\$data, "{{{", "}}}");
-#			$varname = substr($varname, 3);
-#			substr($varname, -3, 3, '');
-#		
-#			my $data = $vars->{lc trim $varname};
-#			if (!defined($data)) {
-#				$cb->{text}->("Reference to undefined var $varname.");
-#			} else {
-
-		} elsif ($data =~ /\G(?<!\{)\{\{[^{]/cg) {
+		} elsif ($data =~ /\G\{\{\{/cg) {
 			pos($data) -= 3;
+			my $varname = match_balanced(\$data, "{{{", "}}}");
+			$varname = substr($varname, 3);
+			substr($varname, -3, 3, '');
+		
+			my $value = $vars->{lc trim $varname};
+			if (!defined($value)) {
+				$cb->{text}->("Reference to undefined var $varname.");
+			} else {
+				parse_wiki($value, $cb, $magic, $vars, $st);
+			}
+#		} elsif ($data =~ /\G(?<!\{)\{\{[^{]/cg) {
+#			pos($data) -= 3;
+		} elsif ($data =~ /\G\{\{/cg) {
+			pos($data) -= 2;
 			my $template = match_balanced(\$data, "{{", "}}");
 			$template = substr($template, 2);
 			substr($template, -2, 2, '');
-			do_template($template);
+			do_template($template, $cb, $magic, $vars, $st);
 		} elsif ($data =~ /\G''''/cg) {
 			if ($st->{em3}) {
 				close_tags($st, $cb, 'em3');
@@ -394,7 +422,7 @@ sub parse_wiki {
 				'list_*_close' => sub { print "</ul>" },
 				'pre_open' => sub { print "<pre>" },
 				'pre_close' => sub { print "</pre>" },
-				'link' => sub { print qq(<a href="/$_[0]">$_[1]</a>); },
+				'link' => sub { print qq(<a href="/wiki/$_[0]">$_[1]</a>); },
 				'table_open' => sub { print qq(<table $_[0]>) },
 				'table_close' => sub { print "</table>" },
 				'table_row_open' => sub { print qq(<tr $_[0]>) },
