@@ -4,6 +4,16 @@
 use strict;
 use warnings;
 
+
+sub trim {
+	my $data = shift;
+
+	$data =~ s/^[ \n\t\r\0\x0b]*//g;
+	$data =~ s/[ \n\t\r\0\x0b]*$//g;
+
+	return $data;
+}
+
 sub match_balanced {
 	my ($data, $open, $close) = @_;
 
@@ -119,11 +129,12 @@ sub do_template {
 			if ($link == 0) {
 				my $pos = pos($params);
 				my $len = $pos - $prev;
-				my $param = substr($params, $prev, $len - 1);
+				my $param = trim(substr($params, $prev, $len - 1));
 				$prev = $pos;
 				if ($param =~ /=/) {
 					my $name;
 					($name, $param) = split /=/, $param, 2;
+					$name = trim($name);
 					$params{$name} = $param;
 				}
 				push @params, $param;
@@ -170,33 +181,33 @@ sub do_template {
 }
 
 sub parse_wiki {
-	my ($data, $cb) = @_;
+	my ($data, $cb, $magic, $vars, $st) = @_;
 
-	my %st;
-	@st{qw(list)} = ("");
+
+	$st->{list} = "";
 
 	while ($data !~ /\G\z/cg) {
 		if ($data =~ /\G\n\n/cgs) {
-			do_pre(\$data, \$st{pre}, $cb);
+			do_pre(\$data, \($st->{pre}), $cb);
 			if ($data =~ /\G(?<=\n)([*#]+)/cg) {
-				do_list($1, \$st{list}, $cb);
+				do_list($1, \($st->{list}), $cb);
 			} else {
-				do_list("", \$st{list}, $cb);
+				do_list("", \($st->{list}), $cb);
 			}
 			$cb->{paragraph}->();
-			close_tags(\%st, $cb, qw(em1 em2 em3 caption));
+			close_tags($st, $cb, qw(em1 em2 em3 caption));
 		} elsif ($data =~ /\G\n/cgs) {
-			do_pre(\$data, \$st{pre}, $cb);
+			do_pre(\$data, \($st->{pre}), $cb);
 			if ($data =~ /\G(?<=\n)([*#]+)/cg) {
-				do_list($1, \$st{list}, $cb);
+				do_list($1, \($st->{list}), $cb);
 			} else {
-				do_list("", \$st{list}, $cb);
+				do_list("", \($st->{list}), $cb);
 			}
 			if ($data !~ /\G(?<=\n)[;:]/cg) {
-				close_tags(\%st, $cb, qw(dd dt dl));
+				close_tags($st, $cb, qw(dd dt dl));
 			}
 			$cb->{whitespace}->();
-			close_tags(\%st, $cb, qw(em1 em2 em3 caption));
+			close_tags($st, $cb, qw(em1 em2 em3 caption));
 		} elsif ($data =~ /\G\s+/cg) {
 			$cb->{whitespace}->();
 		} elsif ($data =~ m#\G<nowiki>(.*?)</nowiki>#cgis) {
@@ -206,37 +217,37 @@ sub parse_wiki {
 		} elsif ($data =~ /\G<!--(.*?)-->/cgs) {
 			$cb->{comment}->($1);
 		} elsif ($data =~ /\G(?:(?<=\n)|\A);/cg) {
-			close_tags(\%st, $cb, qw(dd dt));
+			close_tags($st, $cb, qw(dd dt));
 			$cb->{def_list_open}->();
 			$cb->{def_title_open}->();
-			@st{qw(dl dt)} = qw(1 1);
+			@{$st}{qw(dl dt)} = qw(1 1);
 		} elsif ($data =~ /\G(?:(?<=\n)|\A):/cg) {
-			if ($st{dl}) {
-				close_tags(\%st, $cb, 'dt');
+			if ($st->{dl}) {
+				close_tags($st, $cb, 'dt');
 				$cb->{def_data_open}->();
-				$st{dd} = 1;
+				$st->{dd} = 1;
 			} else {
 				$cb->{indent}->();
 			}
-		} elsif ($st{dd} && $data =~ /\G(?<=\s):/cg) {
-			close_tags(\%st, $cb, 'dt');
+		} elsif ($st->{dd} && $data =~ /\G(?<=\s):/cg) {
+			close_tags($st, $cb, 'dt');
 			$cb->{def_data_open}->();
-			$st{dd} = 1;
+			$st->{dd} = 1;
 		} elsif ($data =~ /\G(?:(?<=\n)|\A)-----*/cg) {
 			$cb->{divider}->();
 		} elsif ($data =~ /\G(?:(?<=\n)|\A){\|(.*)/cg) {
 			$cb->{table_open}->($1);
-			$st{row} = 0;
-			$st{table} ++;
+			$st->{row} = 0;
+			$st->{table} ++;
 		} elsif ($data =~ /\G(?:(?<=\n)|\A)\|\}/cg) {
-			close_tags(\%st, $cb, qw(col header row table));
+			close_tags($st, $cb, qw(col header row table));
 		} elsif ($data =~ /\G(?:(?<=\n)|\A)\|-(.*)/cg) {
-			close_tags(\%st, $cb, qw(col header row));
+			close_tags($st, $cb, qw(col header row));
 			$cb->{table_row_open}->($1);
-			$st{row} = 1;
+			$st->{row} = 1;
 		} elsif ($data =~ /\G(?:(?<=\n)|\A)\|\+/cg) {
 			$cb->{table_caption_open}->();
-			$st{caption} = 1;
+			$st->{caption} = 1;
 		} elsif ($data =~ /\G((?:(?<=\n)|\A)\||\|\|)/cg) {
 			my $start = pos($data);
 			my ($link, $bar) = (undef, undef);
@@ -246,7 +257,7 @@ sub parse_wiki {
 				$link = pos($data);
 			}
 			pos($data) = $start;
-			if ($data =~ /\G.*?\|(?!\|)/cg) {
+			if ($data =~ /\G.*?(?<!\|)\|(?!\|)/cg) {
 				$bar = pos($data);
 			}
 
@@ -258,11 +269,11 @@ sub parse_wiki {
 				pos($data) = $start;
 			}
 
-			close_tags(\%st, $cb, qw(col header));
+			close_tags($st, $cb, qw(col header));
 
-			$st{row} || $cb->{table_row_open}->("");
+			$st->{row} || $cb->{table_row_open}->("");
 			$cb->{table_cell_open}->($params);
-			@st{qw(row col)} = qw(1 1);
+			@{$st}{qw(row col)} = qw(1 1);
 		} elsif ($data =~ /\G((?:(?<=\n)|\A)!|!!)/cg) {
 			my $start = pos($data);
 			my ($link, $bar) = (undef, undef);
@@ -284,10 +295,10 @@ sub parse_wiki {
 				pos($data) = $start;
 			}
 
-			close_tags(\%st, $cb, qw(col header));
-			$st{row} || $cb->{table_row_open}->("");
+			close_tags($st, $cb, qw(col header));
+			$st->{row} || $cb->{table_row_open}->("");
 			$cb->{table_header_open}->($params);
-			@st{qw(row header)} = qw(1 1);
+			@{$st}{qw(row header)} = qw(1 1);
 		} elsif ($data =~ /\G\[\[/cg) {
 			pos($data) -= 2;
 			my $link = match_balanced(\$data, "[[", "]]");
@@ -296,6 +307,17 @@ sub parse_wiki {
 			$data =~ /\G([[:alnum:]]+)/cg;
 			my $suffix = defined($1)?$1:"";
 			do_link($link, $suffix, $cb);
+#		} elsif ($data =~ /\G\{\{\{/cg) {
+#			pos($data) -= 3;
+#			my $varname = match_balanced(\$data, "{{{", "}}}");
+#			$varname = substr($varname, 3);
+#			substr($varname, -3, 3, '');
+#		
+#			my $data = $vars->{lc trim $varname};
+#			if (!defined($data)) {
+#				$cb->{text}->("Reference to undefined var $varname.");
+#			} else {
+
 		} elsif ($data =~ /\G(?<!\{)\{\{[^{]/cg) {
 			pos($data) -= 3;
 			my $template = match_balanced(\$data, "{{", "}}");
@@ -303,25 +325,25 @@ sub parse_wiki {
 			substr($template, -2, 2, '');
 			do_template($template);
 		} elsif ($data =~ /\G''''/cg) {
-			if ($st{em3}) {
-				close_tags(\%st, $cb, 'em3');
+			if ($st->{em3}) {
+				close_tags($st, $cb, 'em3');
 			} else {
 				$cb->{em3_open}->();
-				$st{em3} = 1;
+				$st->{em3} = 1;
 			}
 		} elsif ($data =~ /\G'''/cg) {
-			if ($st{em2}) {
-				close_tags(\%st, $cb, 'em2');
+			if ($st->{em2}) {
+				close_tags($st, $cb, 'em2');
 			} else {
 				$cb->{em2_open}->();
-				$st{em2} = 1;
+				$st->{em2} = 1;
 			}
 		} elsif ($data =~ /\G''/cg) {
-			if ($st{em1}) {
-				close_tags(\%st, $cb, 'em1');
+			if ($st->{em1}) {
+				close_tags($st, $cb, 'em1');
 			} else {
 				$cb->{em1_open}->();
-				$st{em1} = 1;
+				$st->{em1} = 1;
 			}
 		} elsif ($data =~ /\G====(.*?)====/cg) {
 			$cb->{sec3}->($1);
