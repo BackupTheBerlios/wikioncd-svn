@@ -374,10 +374,12 @@ sub parse_wiki {
 				$st->{em1} = 1;
 			}
 		} elsif ($data =~ /\G====(.*?)====/cg) {
-			$cb->{sec3}->($1);
+			$cb->{sec4}->($1);
 		} elsif ($data =~ /\G===(.*?)===/cg) {
-			$cb->{sec2}->($1);
+			$cb->{sec3}->($1);
 		} elsif ($data =~ /\G==(.*?)==/cg) {
+			$cb->{sec2}->($1);
+		} elsif ($data =~ /\G=(.*?)=/cg) {
 			$cb->{sec1}->($1);
 		} else {
 			$data =~ /\G(.[[:alnum:] <>\/]*)/cgi;
@@ -408,6 +410,7 @@ sub parse_wiki {
 				'sec1' => sub { print "<h1>$_[0]</h1>\n" },
 				'sec2' => sub { print "<h2>$_[0]</h2>\n" },
 				'sec3' => sub { print "<h3>$_[0]</h3>\n" },
+				'sec4' => sub { print "<h4>$_[0]</h4>\n" },
 #		'comment' => sub { print "<!-- $_[0] -->" },
 				'comment' => sub { 1 },
 				'divider' => sub { print "<hr>\n" },
