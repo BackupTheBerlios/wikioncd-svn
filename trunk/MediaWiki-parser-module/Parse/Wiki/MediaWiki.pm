@@ -1,4 +1,5 @@
-#!/usr/bin/perl
+package Parse::Wiki::MediaWiki;
+
 ###
 # Wikitext Parser
 # Part of WikiOnCD
@@ -446,4 +447,5 @@ sub parse_wiki {
 		});
 
 		print "</body></html>";
-
+    }
+}
