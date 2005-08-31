@@ -25,12 +25,17 @@ void bz_compress(SV *in) {
 	indata = SvPV(in, len);
 	outlen = len + (len / 100) + 600;
 
-	ret = newSVpv("", outlen);
+//	ret = newSVpvn("", 0);
+//	SvGROW(ret, outlen);
+
+	ret = newSV(outlen);
+	sv_setpvn(ret, "", 0);
 
 	bz_status = BZ2_bzBuffToBuffCompress(SvPVX(ret), &outlen, indata, len, 9, 0, 0);
 
 	if (bz_status == BZ_OK) {
-		sv_setpvn(ret, SvPVX(ret), outlen);
+		SvCUR_set(ret, outlen);
+//		sv_setpvn(ret, SvPVX(ret), outlen);
 	} else {
 		sv_setsv(ret, &PL_sv_undef);
 	}
@@ -49,17 +54,21 @@ void bz_decompress(SV *in) {
 	indata = SvPV(in, len);
 	outlen = len * 2;
 
-	ret = sv_2mortal(newSVpv("", outlen));
+//	ret = sv_2mortal(newSVpvn("", 0));
+//	SvGROW(ret, outlen);
+
+	ret = sv_2mortal(newSV(outlen));
+	sv_setpvn(ret, "", 0);
 	
 	bz_status = BZ2_bzBuffToBuffDecompress(SvPVX(ret), &outlen, indata, len, 0, 0);
 	while (bz_status == BZ_OUTBUFF_FULL) {
 		outlen *= 2;
-		sv_setpvn(ret, "", outlen);
+		SvGROW(ret, outlen);
 		bz_status = BZ2_bzBuffToBuffDecompress(SvPVX(ret), &outlen, indata, len,
 				0, 0);
 	}
 	if (bz_status == BZ_OK) {
-		sv_setpvn(ret, SvPVX(ret), outlen);
+		SvCUR_set(ret, outlen);
 	} else {
 		sv_setsv(ret, &PL_sv_undef);
 	}
@@ -228,6 +237,7 @@ sub cache_offsets {
 			chomp($filename);
 
 			$self->{files}{$filename} = [ $file_pos, $len ];
+			push @{$self->{file_list}}, [ $filename, $file_pos, $len ];
 			$file_pos += $len;
 
 #			debug "(C) found $len bytes file $filename.\n";
@@ -251,6 +261,7 @@ sub find_file_cached {
 
 	return ($flen, $skip);
 }
+
 
 sub find_file_nocache {
 	my ($self, $wantfile) = @_;
@@ -295,6 +306,55 @@ sub find_file_nocache {
 			}
 			$file_pos += $len;
 		}
+	}
+}
+
+sub list_files_cached {
+	my ($self) = @_;
+
+	debug "In LFC.\n";
+
+	return map { $_->[0] } @$self->{file_list};
+}
+
+sub list_files_nocache {
+	my ($self) = @_;
+
+	debug "In LFNC.\n";
+
+	my $block_pos = 8;
+	my @return;
+
+	while (!eof($self->{fh})) {
+		seek $self->{fh}, $block_pos, SEEK_SET;
+		read $self->{fh}, my $code, 4 or return undef;
+		my $len = unpack("N", $code);
+
+		if ($len & 0x80000000) {
+			$len &= 0x7fffffff;
+			$block_pos += 4 + $len;
+			$block ++;
+
+			debug "(U) found $len bytes block.\n";
+		} else {
+			my $filename = readline $self->{fh};
+			$block_pos += 4 + length $filename;
+			chomp($filename);
+
+			push @return, $filename;
+
+			debug "(U) found $len bytes file $filename.\n";
+		}
+	}
+	return @return;
+}
+
+sub list_files {
+	my ($self) = @_;
+	if (defined $self->{block} && defined $self->{files}) {
+		return $self->list_files_cached();
+	} else {
+		return $self->list_files_nocache();
 	}
 }
 
@@ -366,6 +426,3 @@ sub close_for_read {
 }
 
 1;
-
-__END__
-__C__
