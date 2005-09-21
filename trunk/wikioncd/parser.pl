@@ -171,9 +171,9 @@ sub do_template {
 
 	$template =~ s/(?<!{){{([^{}]+)}}/deref_var($magic, $1)/eg;
 
-	print "Template: $template, params (";
-	print join ',', map { "''$_''" } @params;
-	print ")<br />";
+#	print "Template: $template, params (";
+#	print join ',', map { "''$_''" } @params;
+#	print ")<br />";
 }
 
 {
@@ -265,9 +265,9 @@ sub parse_wiki {
 			$st->{row} = 0;
 			$st->{table} ++;
 		} elsif ($data =~ /\G(?:(?<=\n)|\A)\|\}/cg) {
-			close_tags($st, $cb, qw(col header row table));
+			close_tags($st, $cb, qw(em1 em2 col header row table));
 		} elsif ($data =~ /\G(?:(?<=\n)|\A)\|-(.*)/cg) {
-			close_tags($st, $cb, qw(col header row));
+			close_tags($st, $cb, qw(em1 em2 col header row));
 			$cb->{table_row_open}->($1);
 			$st->{row} = 1;
 		} elsif ($data =~ /\G(?:(?<=\n)|\A)\|\+/cg) {
@@ -294,7 +294,7 @@ sub parse_wiki {
 				pos($data) = $start;
 			}
 
-			close_tags($st, $cb, qw(col header));
+			close_tags($st, $cb, qw(em1 em2 col header));
 
 			$st->{row} || $cb->{table_row_open}->("");
 			$cb->{table_cell_open}->($params);
@@ -320,7 +320,7 @@ sub parse_wiki {
 				pos($data) = $start;
 			}
 
-			close_tags($st, $cb, qw(col header));
+			close_tags($st, $cb, qw(em1 em2 col header));
 			$st->{row} || $cb->{table_row_open}->("");
 			$cb->{table_header_open}->($params);
 			@{$st}{qw(row header)} = qw(1 1);
@@ -352,13 +352,6 @@ sub parse_wiki {
 			$template = substr($template, 2);
 			substr($template, -2, 2, '');
 			do_template($template, $cb, $magic, $vars, $st);
-		} elsif ($data =~ /\G''''/cg) {
-			if ($st->{em3}) {
-				close_tags($st, $cb, 'em3');
-			} else {
-				$cb->{em3_open}->();
-				$st->{em3} = 1;
-			}
 		} elsif ($data =~ /\G'''/cg) {
 			if ($st->{em2}) {
 				close_tags($st, $cb, 'em2');
@@ -387,63 +380,3 @@ sub parse_wiki {
 		}
 		}
 		}
-
-		die "WTF" unless @ARGV == 1;
-		open my $in, '<', $ARGV[0] or die $!;
-		my $data = do { local $/; <$in>; };
-		close $in;
-
-		print "<html><body>";
-		parse_wiki($data, {
-				'text' => sub { print $_[0] },
-				'nowiki' => sub { print $_[0] },
-				'paragraph' => sub { print "<p />\n\n" },
-				'list' => sub { print "<br />List: <code>$_[0]</code>\n"; },
-				'link' => sub { print "<code>$_[0]</code>" },
-				'template' => sub { print "<code>$_[0]</code>" },
-				'em1_open' => sub { print "<i>"; },
-				'em1_close' => sub { print "</i>"; },
-				'em2_open' => sub { print "<b>"; },
-				'em2_close' => sub { print "</b>"; },
-				'em3_open' => sub { print "<b><i>"; },
-				'em3_close' => sub { print "</i></b>"; },
-				'sec1' => sub { print "<h1>$_[0]</h1>\n" },
-				'sec2' => sub { print "<h2>$_[0]</h2>\n" },
-				'sec3' => sub { print "<h3>$_[0]</h3>\n" },
-				'sec4' => sub { print "<h4>$_[0]</h4>\n" },
-#		'comment' => sub { print "<!-- $_[0] -->" },
-				'comment' => sub { 1 },
-				'divider' => sub { print "<hr>\n" },
-				'whitespace' => sub { print " "; },
-				'list_#_open' => sub { print "<ol>" },
-				'list_#_item_open' => sub { print "<li>" },
-				'list_#_item_close' => sub { print "</li>" },
-				'list_#_close' => sub { print "</ol>" },
-				'list_*_open' => sub { print "<ul>" },
-				'list_*_item_open' => sub { print "<li>" },
-				'list_*_item_close' => sub { print "</li>" },
-				'list_*_close' => sub { print "</ul>" },
-				'pre_open' => sub { print "<pre>" },
-				'pre_close' => sub { print "</pre>" },
-				'link' => sub { print qq(<a href="/wiki/$_[0]">$_[1]</a>); },
-				'table_open' => sub { print qq(<table $_[0]>) },
-				'table_close' => sub { print "</table>" },
-				'table_row_open' => sub { print qq(<tr $_[0]>) },
-				'table_row_close' => sub { print "</tr>" },
-				'table_cell_open' => sub { print qq(<td $_[0]>) },
-				'table_cell_close' => sub { print "</td>" },
-				'table_header_open' => sub { print qq(<th $_[0]>) },
-				'table_header_close' => sub { print "</th>" },
-				'table_caption_open' => sub { print "<caption>" },
-				'table_caption_close' => sub { print "</caption>" },
-				'def_list_open' => sub { print "<dl>" },
-				'def_list_close' => sub { print "</dl>" },
-				'def_title_open' => sub { print "<dt>" },
-				'def_title_close' => sub { print "</dt>" },
-				'def_data_open' => sub { print "<dd>" },
-				'def_data_close' => sub { print "</dd>" },
-				'indent' => sub { 1 },
-		});
-
-		print "</body></html>";
-
