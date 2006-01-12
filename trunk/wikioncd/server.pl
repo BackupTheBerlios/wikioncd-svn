@@ -35,7 +35,7 @@ sub canonicalize {
 	$namespace = lc $namespace;
 	$namespace .= ":" if $namespace;
 
-	$filename = ucfirst lc $filename;
+	$filename = ucfirst $filename;
 	$filename =~ s/[^A-Za-z0-9,.'()\x80-\xff-]/_/g;
 
 	return $namespace . $filename;
